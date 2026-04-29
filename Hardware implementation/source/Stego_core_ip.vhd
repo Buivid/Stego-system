@@ -122,45 +122,75 @@ s_done <= done_hload or done_decode or done_embed or done_encode;
 busy <= s_busy;
 done <= s_done;
 
+--process(clk)
+--begin
+--    if rising_edge(clk)then
+--        if rst = '1' then
+--            byte_cnt <= "00";
+--            unpack_active <= '0';
+--            byte_valid <= '0';
+--            byte_last <= '0';
+--        else
+--            byte_valid <= '0';
+--            byte_last <= '0';
+--            if data_in_valid = '1' and unpack_active = '0' then
+--                word_reg <= data_in;
+--                unpack_active <= '1';
+--                byte_cnt <= "00";
+--            end if;
+--            if unpack_active = '1' and byte_ready = '1' then
+--                byte_valid <= '1';
+--                if data_in_last = '1' and byte_cnt = "11" then
+--                    byte_last <= '1';
+--                end if;
+----                byte_last <= data_in_last and (byte_cnt = "11");
+--                case byte_cnt is
+--                    when "00" => byte_data <= word_reg(31 downto 24);
+--                    when "01" => byte_data <= word_reg(23 downto 16);
+--                    when "10" => byte_data <= word_reg(15 downto 8);
+--                    when "11" => byte_data <= word_reg(7 downto 0);
+--                end case;
+--                byte_cnt <= byte_cnt + 1;
+--                if byte_cnt = "11" then
+--                    unpack_active <= '0';
+--                end if;
+--            end if;
+--        end if;
+--    end if;
+--end process;
+
+--data_in_ready <= '1' when unpack_active = '0' or (unpack_active = '1' and byte_cnt = "11" and byte_ready = '1')
+--                else '0';
+
 process(clk)
 begin
     if rising_edge(clk)then
         if rst = '1' then
             byte_cnt <= "00";
-            unpack_active <= '0';
             byte_valid <= '0';
-            byte_last <= '0';
-        else
+        elsif current_mode = MODE_LOAD_HUFF_TABLES then
             byte_valid <= '0';
-            byte_last <= '0';
-            if data_in_valid = '1' and unpack_active = '0' then
-                word_reg <= data_in;
-                unpack_active <= '1';
-                byte_cnt <= "00";
-            end if;
-            if unpack_active = '1' and byte_ready = '1' then
+            if data_in_valid = '1' then
                 byte_valid <= '1';
-                if data_in_last = '1' and byte_cnt = "11" then
-                    byte_last <= '1';
-                end if;
---                byte_last <= data_in_last and (byte_cnt = "11");
                 case byte_cnt is
                     when "00" => byte_data <= word_reg(31 downto 24);
                     when "01" => byte_data <= word_reg(23 downto 16);
                     when "10" => byte_data <= word_reg(15 downto 8);
                     when "11" => byte_data <= word_reg(7 downto 0);
                 end case;
-                byte_cnt <= byte_cnt + 1;
-                if byte_cnt = "11" then
-                    unpack_active <= '0';
+                if byte_ready = '1' then
+                    if byte_cnt = "11" then
+                        byte_cnt <= "00";
+                    else
+                        byte_cnt <= byte_cnt + 1;
+                    end if;
                 end if;
             end if;
         end if;
     end if;
 end process;
 
-data_in_ready <= '1' when unpack_active = '0' or (unpack_active = '1' and byte_cnt = "11" and byte_ready = '1')
-                else '0';
+data_in_ready <= '1' when byte_ready = '1' and byte_cnt = "10" else '0';
 
 U_load_huff: entity work.huff_table_loader
 port map(
