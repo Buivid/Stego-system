@@ -19,7 +19,7 @@ entity dht_parser is
 --        table_addr      : out STD_LOGIC_VECTOR(15 downto 0); 
         min_code        : out std_logic_vector(15 downto 0);
         max_code        : out std_logic_vector(15 downto 0);
-        val_ptr         : out integer range 0 to 256;
+        val_ptr         : out integer range 0 to 255;
         huff_len        : out integer range 0 to 15;
         huff_val        : out std_logic_vector(7 downto 0);
         table_id        : out std_logic_vector(1 downto 0);

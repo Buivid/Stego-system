@@ -2,7 +2,7 @@ library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
 
-entity top_module is
+entity decode_module is
     Port (
         clk           : in  STD_LOGIC;
         rst           : in  STD_LOGIC;
@@ -16,9 +16,9 @@ entity top_module is
         data_out_valid: out std_logic;
         ready_out: in std_logic);
         
-end top_module;
+end decode_module;
 
-architecture Behavioral of top_module is
+architecture Behavioral of decode_module is
 component dht_parser
     Port (
         clk             : in  STD_LOGIC;
@@ -29,7 +29,7 @@ component dht_parser
         dht_start       : in  STD_LOGIC;
         min_code        : out std_logic_vector(15 downto 0);
         max_code        : out std_logic_vector(15 downto 0);
-        val_ptr         : out integer range 0 to 256;
+        val_ptr         : out integer range 0 to 255;
         huff_len        : out integer range 0 to 15;
         huff_val        : out std_logic_vector(7 downto 0);
         table_id        : out std_logic_vector(1 downto 0);
@@ -42,8 +42,8 @@ end component;
     signal state : state_type := IDLE;
     
     type huff_min_max_type is array(0 to 15) of std_logic_vector(15 downto 0);
-    type huff_valptr_type is array(0 to 15) of integer range 0 to 511;
-    type huff_val_type is array(0 to 511) of std_logic_vector(7 downto 0);
+    type huff_valptr_type is array(0 to 15) of integer range 0 to 255;--change 511 to 255
+    type huff_val_type is array(0 to 255) of std_logic_vector(7 downto 0);
     
     type huff_table_type is record
         min_code: huff_min_max_type;
@@ -69,7 +69,7 @@ end component;
 --    signal dht_data_in: std_logic_vector(7 downto 0);
     signal min_code: std_logic_vector(15 downto 0);
     signal max_code: std_logic_vector(15 downto 0);
-    signal val_ptr: integer range 0 to 256;
+    signal val_ptr: integer range 0 to 255;
     signal huff_len: integer range 0 to 15;
     signal huff_val: std_logic_vector(7 downto 0);
     signal table_id: std_logic_vector(1 downto 0);

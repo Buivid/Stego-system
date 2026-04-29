@@ -4,14 +4,14 @@ use IEEE.NUMERIC_STD.ALL;
 use std.textio.all;
 use ieee.std_logic_textio.all;
 
-entity tb_top_module is
+entity tb_decode_module is
 -- Òåñòáåí÷ íå èìååò ïîğòîâ
-end tb_top_module;
+end tb_decode_module;
 
-architecture Behavioral of tb_top_module is
+architecture Behavioral of tb_decode_module is
 
     -- Êîìïîíåíò
-    component top_module
+    component decode_module
         Port (
             clk             : in  STD_LOGIC;
             rst             : in  STD_LOGIC;
@@ -87,7 +87,7 @@ begin
     end process;
 
     -- İêçåìïëÿğ òåñòèğóåìîãî ìîäóëÿ (UUT)
-    uut: top_module port map (
+    uut: decode_module port map (
         clk => clk,
         rst => rst,
         data_in => s_data_in,
