@@ -51,24 +51,22 @@ signal done_decode: std_logic;
 signal done_embed: std_logic;
 signal done_encode: std_logic;
 
-type huff_min_max_type is array(0 to 15) of std_logic_vector(15 downto 0);
-type huff_valptr_type is array(0 to 15) of integer range 0 to 255;--change 511 to 255
-type huff_val_type is array(0 to 255) of std_logic_vector(7 downto 0);
+signal decode_data_out: std_logic_vector(DATA_WIDTH-1 downto 0);
+signal decode_data_out_valid: std_logic;
+signal decode_data_out_last: std_logic;
+signal decode_data_in_ready: std_logic;
 
-type huff_table_type is record
-    min_code: huff_min_max_type;
-    max_code: huff_min_max_type;
-    val_ptr: huff_valptr_type;
-    huffval: huff_val_type;
-end record;
+signal embed_data_out: std_logic_vector(DATA_WIDTH-1 downto 0);
+signal embed_data_out_valid: std_logic;
+signal embed_data_out_last: std_logic;
+signal embed_data_in_ready: std_logic;
 
-type huff_tables_type is array(0 to 3) of huff_table_type;
+signal encode_data_out: std_logic_vector(DATA_WIDTH-1 downto 0);
+signal encode_data_out_valid: std_logic;
+signal encode_data_out_last: std_logic;
+signal encode_data_in_ready: std_logic;
 
-signal huff_tables: huff_tables_type:=(others =>(
-min_code => (others => (others => '1')),
-max_code => (others => (others => '0')),
-val_ptr => (others => 0),
-huffval => (others => (others => '0'))));
+signal hload_in_ready: std_logic;
 
 signal min_code: std_logic_vector(15 downto 0);
 signal max_code: std_logic_vector(15 downto 0);
@@ -78,7 +76,7 @@ signal huff_val: std_logic_vector(7 downto 0);
 signal table_id: std_logic_vector(1 downto 0);
 signal counts_valid: std_logic;
 signal values_valid: std_logic;
-signal huffval_idx: integer range 0 to 511:=0;
+--signal huffval_idx: integer range 0 to 511:=0;
 
 signal byte_data: std_logic_vector(7 downto 0);
 signal byte_valid: std_logic;
@@ -86,7 +84,7 @@ signal byte_last: std_logic;
 signal byte_ready: std_logic;
 signal word_reg: std_logic_vector(31 downto 0);
 signal byte_cnt: unsigned(1 downto 0):="00";
-signal unpack_active: std_logic:='0';
+--signal unpack_active: std_logic:='0';
 
 begin
 
@@ -190,7 +188,7 @@ begin
     end if;
 end process;
 
-data_in_ready <= '1' when byte_ready = '1' and byte_cnt = "10" else '0';
+--data_in_ready <= '1' when byte_ready = '1' and byte_cnt = "10" else '0';
 
 U_load_huff: entity work.huff_table_loader
 port map(
@@ -210,34 +208,7 @@ port map(
         values_valid => values_valid,
         table_id => table_id,
         table_done => done_hload);
-        
-process(clk)
-variable current_table_id: integer range 0 to 3:= 0;
-begin
-    if rising_edge(clk)then
-        if rst = '1' then
-            huff_tables <= (others =>(
-                min_code => (others => (others => '1')),
-                max_code => (others => (others => '0')),
-                val_ptr => (others => 0),
-                huffval => (others => (others => '0'))));
-            huffval_idx <= 0;
-        else
-            if counts_valid = '1' then
-                current_table_id := to_integer(unsigned(table_id));
-                huff_tables(current_table_id).min_code(huff_len) <= min_code;
-                huff_tables(current_table_id).max_code(huff_len) <= max_code;
-                huff_tables(current_table_id).val_ptr(huff_len) <= val_ptr;
-                huffval_idx <= 0;
-            end if;
-            if values_valid = '1' then
-                current_table_id := to_integer(unsigned(table_id));
-                huff_tables(current_table_id).huffval(huffval_idx) <= huff_val;
-                huffval_idx <= huffval_idx + 1; 
-            end if;
-        end if;
-    end if;
-end process;
+         
         
 U_decode: entity work.bitstream_decoder
 port map(
@@ -247,11 +218,19 @@ port map(
        data_in => data_in,
        data_in_valid => data_in_valid,
        data_in_last => data_in_last,
-       data_in_ready => data_in_ready,
-       data_out => data_out,
-       data_out_valid => data_out_valid,
-       data_out_last => data_out_last,
+       data_in_ready => decode_data_in_ready,
+       data_out => decode_data_out,
+       data_out_valid => decode_data_out_valid,
+       data_out_last => decode_data_out_last,
        data_out_ready => data_out_ready,
+       min_code => min_code,
+       max_code => max_code,
+       val_ptr => val_ptr,
+       huff_len => huff_len,
+       counts_valid => counts_valid,
+       huff_val => huff_val,
+       values_valid => values_valid,
+       table_id => table_id,       
        done => done_decode
        );
 
@@ -264,10 +243,10 @@ port map (
         data_in => data_in,
         data_in_valid => data_in_valid,
         data_in_last => data_in_last,
-        data_in_ready => data_in_ready,
-        data_out => data_out,
-        data_out_valid => data_out_valid,
-        data_out_last => data_out_last,
+        data_in_ready => embed_data_in_ready,
+        data_out => embed_data_out,
+        data_out_valid => embed_data_out_valid,
+        data_out_last => embed_data_out_last,
         data_out_ready => data_out_ready,
         done => done_embed);
         
@@ -279,11 +258,48 @@ port map(
         data_in => data_in,
         data_in_valid => data_in_valid,
         data_in_last => data_in_last,
-        data_in_ready => data_in_ready,
-        data_out => data_out,
-        data_out_valid => data_out_valid,
-        data_out_last => data_out_last,
+        data_in_ready => encode_data_in_ready,
+        data_out => encode_data_out,
+        data_out_valid => encode_data_out_valid,
+        data_out_last => encode_data_out_last,
         data_out_ready => data_out_ready,
+        table_id => table_id,
+        huff_val => huff_val,
+        huff_len => huff_len,
+        huff_code => min_code,
+        huff_valid => values_valid,
         done => done_encode);   
+
+process(clk)
+begin
+    case current_mode is
+    when MODE_DECODE_BITSTREAM =>
+        data_out <= decode_data_out;
+        data_out_valid <= decode_data_out_valid;
+        data_out_last <= decode_data_out_last;
+        data_in_ready <= decode_data_in_ready;
+    when MODE_EMBED =>
+        data_out <= embed_data_out;
+        data_out_valid <= embed_data_out_valid;
+        data_out_last <= embed_data_out_last;
+        data_in_ready <= embed_data_in_ready;
+    when MODE_ENCODE =>
+        data_out <= encode_data_out;
+        data_out_valid <= encode_data_out_valid;
+        data_out_last <= encode_data_out_last;
+        data_in_ready <= encode_data_in_ready;
+    when MODE_LOAD_HUFF_TABLES => 
+        if byte_ready = '1' and byte_cnt = "10" then
+            data_in_ready <= '1';
+        else
+            data_in_ready <= '0';
+        end if;
+    when others =>
+        data_out <= (others => '0');
+        data_out_valid <= '0';
+        data_out_last <= '1';
+        data_in_ready <= '1';
+    end case;
+end process;
 
 end Behavioral;
