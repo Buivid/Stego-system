@@ -35,6 +35,7 @@ constant MODE_LOAD_HUFF_TABLES: std_logic_vector(3 downto 0):=x"1";
 constant MODE_DECODE_BITSTREAM: std_logic_vector(3 downto 0):=x"2";
 constant MODE_EMBED: std_logic_vector(3 downto 0):=x"3";
 constant MODE_ENCODE: std_logic_vector(3 downto 0):= x"4";
+constant MODE_EXTRACT: std_logic_vector(3 downto 0):= x"5";
 
 signal current_mode: std_logic_vector(3 downto 0);
 signal s_start: std_logic;
@@ -45,11 +46,13 @@ signal start_hload: std_logic;
 signal start_decode: std_logic;
 signal start_embed: std_logic;
 signal start_encode: std_logic;
+signal start_extract: std_logic;
 
 signal done_hload: std_logic;
 signal done_decode: std_logic;
 signal done_embed: std_logic;
 signal done_encode: std_logic;
+signal done_extract: std_logic;
 
 signal decode_data_out: std_logic_vector(DATA_WIDTH-1 downto 0);
 signal decode_data_out_valid: std_logic;
@@ -65,6 +68,11 @@ signal encode_data_out: std_logic_vector(DATA_WIDTH-1 downto 0);
 signal encode_data_out_valid: std_logic;
 signal encode_data_out_last: std_logic;
 signal encode_data_in_ready: std_logic;
+
+signal extract_data_out: std_logic_vector(DATA_WIDTH-1 downto 0);
+signal extract_data_out_valid: std_logic;
+signal extract_data_out_last: std_logic;
+signal extract_data_in_ready: std_logic;
 
 signal hload_in_ready: std_logic;
 
@@ -108,14 +116,16 @@ start_hload <= s_start when current_mode = MODE_LOAD_HUFF_TABLES else '0';
 start_decode <= s_start when current_mode = MODE_DECODE_BITSTREAM else '0';
 start_embed <= s_start when current_mode = MODE_EMBED else '0';
 start_encode <= s_start when current_mode = MODE_ENCODE else '0';
+start_extract <= s_start when current_mode = MODE_EXTRACT else '0';
 
 s_busy <= '1' when (done_hload = '0' and current_mode = MODE_LOAD_HUFF_TABLES) or
                    (done_decode = '0' and current_mode = MODE_DECODE_BITSTREAM) or
                    (done_embed = '0' and current_mode = MODE_EMBED) or
-                   (done_encode = '0' and current_mode = MODE_ENCODE)
+                   (done_encode = '0' and current_mode = MODE_ENCODE) or
+                   (done_extract = '0' and current_mode = MODE_EXTRACT)
                    else '0';
 
-s_done <= done_hload or done_decode or done_embed or done_encode;
+s_done <= done_hload or done_decode or done_embed or done_encode or done_extract;
 
 busy <= s_busy;
 done <= s_done;
@@ -269,6 +279,19 @@ port map(
         huff_code => min_code,
         huff_valid => values_valid,
         done => done_encode);   
+
+U_extract: entity work.extracter
+port map(
+        clk => clk,
+        rst => rst,
+        start => start,
+        data_in => data_in,
+        data_in_valid => data_in_valid,
+        data_in_last => data_in_last,
+        data_in_ready => data_in_ready,
+        extr_bit => extr_bit,
+        extr_bit_valid => extract_data_out_valid,
+        done => done_extract);
 
 process(clk)
 begin

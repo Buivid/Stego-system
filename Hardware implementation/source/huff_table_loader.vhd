@@ -45,14 +45,18 @@ architecture Behavioral of huff_table_loader is
   signal total_symbols : integer range 0 to 256 := 0;
   
   -- ’ранилище количества кодов разной длины (16 байт)
---    type counts_array is array (0 to 15) of unsigned(7 downto 0);
---    signal counts : counts_array;    
-  signal code: std_logic_vector(15 downto 0):=(others=>'0');
---    signal not_first: std_logic:='0';
---    signal pending_increment : std_logic := '0';
+type counts_array is array (0 to 15) of integer range 0 to 255;
+signal counts : counts_array;  
 
---    signal counts_idx: integer range 0 to 256:=0; 
-
+type min_code_array is array(0 to 15) of std_logic_vector(15 downto 0);
+signal min_codes: min_code_array; 
+     
+signal code: std_logic_vector(15 downto 0):=(others=>'0');
+signal curr_val: std_logic_vector(7 downto 0);
+signal curr_len: integer range 0 to 15 := 0;
+signal curr_code: std_logic_vector(15 downto 0):=(others => '0');
+signal symbol_idx: integer range 0 to 255:= 0;
+signal data_in_ready_reg: std_logic;
 begin
   process(clk)
   begin
@@ -96,13 +100,17 @@ begin
   end process;
   
   process(clk)
+--  variable curr_code: std_logic_vector(15 downto 0):= (others => '0');
   begin
       if rising_edge(clk)then
           if rst = '1' then
               byte_cnt <= 0;
               counts_valid <= '0';
               values_valid <= '0';
-              --refreshing registers
+              curr_code <= (others => '0');
+              curr_len <= 0;
+              symbol_idx <= 0;
+              data_in_ready <= '0';
           else
               case state is
               when IDLE =>
@@ -110,19 +118,14 @@ begin
                   length <= 0;
                   cnt_len <= 0;
                   total_symbols <= 0;
-                  if start = '1' then
-                      data_in_ready <= '1';
-                  else
-                      data_in_ready <= '0';
-                  end if;
+                  data_in_ready <= '1';
                   counts_valid <= '0';
                   values_valid <= '0';
---                    cnt_len <= 1;
+                  curr_code <= (others => '0');
+                  curr_len <= 0;
                   code <= (others => '0');
                   table_done <= '0';
---                    not_first <= '0';
-                  
-              --refresh registers
+                  curr_len <= 0;
               when READ_LEN =>
                   if data_in_valid = '1' then
                       if byte_cnt < 1 then
@@ -143,14 +146,17 @@ begin
               when READ_COUNTS =>
                   if data_in_valid = '1' then 
                       counts_valid <= '1';
-                      huff_len <= byte_cnt;                     
+                      huff_len <= byte_cnt;
+                      counts(byte_cnt) <= to_integer(unsigned(data_in));                     
                       if data_in /= x"00" then
                           min_code <= code;
+                          min_codes(byte_cnt) <= code;
                           max_code <= std_logic_vector(unsigned(code) + unsigned(data_in) - 1);
                           val_ptr <= total_symbols;
                           total_symbols <= total_symbols + to_integer(unsigned(data_in));
                           code <= std_logic_vector(shift_left(unsigned(code) + unsigned(data_in), 1));                          
                       else
+                          min_codes(byte_cnt) <= (others => '0');
                           min_code <= x"0001";
                           max_code <= x"0000";
                           code <= std_logic_vector(shift_left(unsigned(code), 1));
@@ -158,7 +164,7 @@ begin
                       if byte_cnt = 15 then
                           byte_cnt <= 0;
                           counts_valid <= '0';
---                            ready_for_data <= '0';
+                          data_in_ready <= '0';
                       else
                           byte_cnt <= byte_cnt + 1;
                           cnt_len <= cnt_len + 1;
@@ -170,24 +176,46 @@ begin
 --                            data_out_valid <= '0';
 --                        end if;
                   end if;
---                when FIND_LEN =>
---                    if counts(byte_cnt) = 0 then
---                        byte_cnt <= byte_cnt + 1;
---                        if not_first = '1' then
---                            if pending_increment = '1' then
---                                code <= std_logic_vector(shift_left(unsigned(code) + 1, 1));
---                                pending_increment <= '0'; 
---                            else
---                                code <= std_logic_vector(shift_left(unsigned(code), 1));
---                            end if;
---                        end if;
---                    else
---                        ready_for_data <= '1';
---                    end if;
               when READ_SYMBOL =>
-                  if data_in_valid = '1' then
-                      values_valid <= '1';
-                      huff_val <= data_in;
+                  if data_in_valid = '1' and data_in_ready_reg = '1' then
+                    values_valid <= '1';
+                    huff_val <= data_in;
+                    huff_len <= curr_len;
+                    min_code <= curr_code;
+                    curr_code <= std_logic_vector(unsigned(curr_code) + 1);
+                  else
+                    values_valid <= '0';
+                  end if;     
+                      
+                  if counts(curr_len) > 0 then
+                    cnt_len <= cnt_len + 1;
+                    data_in_ready_reg <= '1';
+                    data_in_ready <= '1';
+                    
+                    counts(curr_len) <= counts(curr_len) - 1;
+--                        values_valid <= '1';
+                  else
+                    data_in_ready_reg <= '0';
+                    data_in_ready <= '0';
+--                        values_valid <= '0';
+--                        if counts(curr_len) = 1 then
+--                            data_in_ready <= '1';
+--                            values_valid <= '1';
+--                        else
+--                            data_in_ready <= '0';
+--                            values_valid <= '0';
+--                        end if;
+                  end if;
+                  if counts(curr_len) = 0 then
+                  for i in curr_len + 1 to 15 loop
+                      if counts(i) /= 0 then
+                          curr_len <= i;
+                          curr_code <= min_codes(i);
+                          exit;
+                      end if;
+                  end loop;
+                  end if;
+                      
                       if cnt_len = length - 1 then
                           data_in_ready <= '0';
                       end if;
@@ -199,9 +227,9 @@ begin
 --                            code <= std_logic_vector(unsigned(code) + 1);
 --                        end if;
 --                        counts(byte_cnt) <= counts(byte_cnt) - 1;
-                      cnt_len <= cnt_len + 1;
+
 --                        not_first <= '1';
-                  end if; 
+
               when DONE =>
                   table_done <= '1';
                   data_in_ready <= '0';
