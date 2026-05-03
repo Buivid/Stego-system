@@ -53,10 +53,12 @@ signal state: state_type:= IDLE;
 signal coef_idx: integer range 0 to 63 := 0;
 signal eob_detected: std_logic:= '0';
 signal last_block: std_logic:= '0';
-signal bit_pos: integer range 0 to 63:= 0;
+signal bits_available: integer range 0 to 64:= 0;
 signal bits_buffer: std_logic_vector(63 downto 0);
 signal current_table_id: integer range 0 to 3:=0;
 signal block_id: integer range 0 to 2:= 0;
+
+signal data_in_ready_reg: std_logic:='0'; 
 
 type coefs_block_type is array(0 to 63) of std_logic_vector(15 downto 0);
 signal current_block: coefs_block_type := (others => (others => '0'));
@@ -146,19 +148,47 @@ begin
                 done <= '0';
             when DECODE =>
                 data_out_valid <= '0';
-                v_bit_pos := bit_pos;
+                v_bit_pos := bits_available-1;
                 add_bits:=0;
-                if data_in_valid = '1' and bit_pos < 31 then
+                extra_bits:=(others=>'0');
+--                if data_in_valid = '1' and bit_pos < 31 then
+--                    bits_buffer <= bits_buffer(31 downto 0) & data_in;
+--                    if data_in_last = '1' then
+--                        last_block <= '1';
+--                    end if;
+--                    add_bits := add_bits + 32;
+--                    data_in_ready <= '1';
+--                else
+--                    data_in_ready <= '0';
+--                end if;
+                if bits_available < 32 then
+                    data_in_ready_reg <= '1';
+                    data_in_ready <= '1';
+                else 
+                    data_in_ready_reg <= '0';
+                end if;
+--                data_in_ready <= data_in_ready_reg;
+                if data_in_ready_reg = '1' and data_in_valid = '1' then
                     bits_buffer <= bits_buffer(31 downto 0) & data_in;
                     if data_in_last = '1' then
                         last_block <= '1';
                     end if;
                     add_bits := add_bits + 32;
-                    data_in_ready <= '1';
-                else
                     data_in_ready <= '0';
                 end if;
-                if bit_pos + 1 >= 16 then
+--                if bit_pos < 31 then
+--                    data_in_ready <= '1';
+--                    if data_in_valid = '1' then
+--                        bits_buffer <= bits_buffer(31 downto 0) & data_in;
+--                        if data_in_last = '1' then
+--                            last_block <= '1';
+--                        end if;
+--                        add_bits := add_bits + 32;
+--                    end if;
+--                else 
+--                    data_in_ready <= '0';
+--                end if;
+                if v_bit_pos + 1 >= 16 then
                     code_len:=0;
                     huff_code:= (others => '0');
                     for len in 1 to 16 loop
@@ -173,16 +203,16 @@ begin
                     if code_len > 0 then
                         huff_code:=huff_tables(current_table_id).huffval(
                         huff_tables(current_table_id).val_ptr(code_len-1) + 
-                        to_integer(unsigned(code(15 downto 16-code_len))) -
+                        to_integer(unsigned(code)) -
                         to_integer(unsigned(huff_tables(current_table_id).min_code(code_len-1))));
-                        v_bit_pos := bit_pos - code_len;
+                        v_bit_pos := v_bit_pos - code_len;
                         add_bits := add_bits - code_len;
 --                            bits_available <= bits_available - code_len;
                         run_length := to_integer(unsigned(huff_code(7 downto 4)));
                         category := to_integer(unsigned(huff_code(3 downto 0)));
                         
                         if category > 0 then
-                            if bit_pos + 1 >= category then --bits_available >= category then--bits_ava меняется в этом же процессе
+                            if v_bit_pos + 1 >= category then --bits_available >= category then--bits_ava меняется в этом же процессе
                                 extra_bits := resize(extra_bits(15 downto category) & unsigned(bits_buffer(v_bit_pos downto v_bit_pos-category + 1)), 16);
                                 v_bit_pos := v_bit_pos - category;
                                 add_bits := add_bits - category;
@@ -244,7 +274,7 @@ begin
                         end if;   
                     end if;
                 end if;
-                bit_pos <= bit_pos + add_bits;
+                bits_available <= bits_available + add_bits;
             when WRITE_BLOCK =>
                 data_out <= current_block(coef_idx) & current_block(coef_idx + 1);
                 data_out_valid <= '1';

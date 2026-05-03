@@ -94,6 +94,8 @@ signal word_reg: std_logic_vector(31 downto 0);
 signal byte_cnt: unsigned(1 downto 0):="00";
 --signal unpack_active: std_logic:='0';
 
+signal extr_bit: std_logic;
+signal extr_bit_valid: std_logic;
 begin
 
 process(clk)

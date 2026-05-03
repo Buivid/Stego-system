@@ -147,12 +147,12 @@ begin
                   if data_in_valid = '1' then 
                       counts_valid <= '1';
                       huff_len <= byte_cnt;
+                      val_ptr <= total_symbols;
                       counts(byte_cnt) <= to_integer(unsigned(data_in));                     
                       if data_in /= x"00" then
                           min_code <= code;
                           min_codes(byte_cnt) <= code;
-                          max_code <= std_logic_vector(unsigned(code) + unsigned(data_in) - 1);
-                          val_ptr <= total_symbols;
+                          max_code <= std_logic_vector(unsigned(code) + unsigned(data_in) - 1);   
                           total_symbols <= total_symbols + to_integer(unsigned(data_in));
                           code <= std_logic_vector(shift_left(unsigned(code) + unsigned(data_in), 1));                          
                       else
@@ -163,7 +163,7 @@ begin
                       end if;
                       if byte_cnt = 15 then
                           byte_cnt <= 0;
-                          counts_valid <= '0';
+--                          counts_valid <= '0';
                           data_in_ready <= '0';
                       else
                           byte_cnt <= byte_cnt + 1;
@@ -177,6 +177,7 @@ begin
 --                        end if;
                   end if;
               when READ_SYMBOL =>
+                  counts_valid <= '0';
                   if data_in_valid = '1' and data_in_ready_reg = '1' then
                     values_valid <= '1';
                     huff_val <= data_in;
